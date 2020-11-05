@@ -29,17 +29,20 @@ class Transactions
 
 std::vector<Transactions> transaction;
 
-class Blockchain
+class Block
 {
-    std::string prev_hash;
-    int timestamp;
-    int version  = 1;
-    std::string merkel_root_hash;
-    int nonce;
-    int difficulty_target;
-    std::vector<Transactions> T;
-    
+    public:
+        std::string prev_hash;
+        int64_t timestamp;
+        std::string version;
+        std::string merkel_root_hash;
+        int nonce;
+        std::string difficulty_target;
+        std::vector<Transactions> T;
+        Block* next;
+        
 };
+
 std::random_device rd;
     std::mt19937::result_type seed = rd() ^ (
             (std::mt19937::result_type)
@@ -118,7 +121,7 @@ std::string hash_function(std::string str)
 }
 
 
-void generate_trans()
+void generate_trans(std::vector<Transactions> &transaction)
 {
     std::uniform_int_distribution<unsigned> rnd1(0, 999);
     Transactions tmp;
@@ -153,4 +156,125 @@ void generate_trans()
     }
 
     std::cout << "Tranasakcijos sugeneruotos\n";
+}
+
+
+void addblock(Block* &blokelis, std::vector<Transactions> &Trans)
+{
+
+    // std::string prev_hash;
+    //    int nonce;
+    if(!blokelis)
+    {
+        blokelis = new Block;
+
+    int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    blokelis->timestamp = time;
+    blokelis->version = "1st";
+    blokelis->difficulty_target = "000";
+    blokelis->nonce = 0;
+
+    auto start = Trans.begin(); 
+    auto end = Trans.begin() + 100; 
+  
+    std::vector<Transactions> Tr(100); 
+  
+    copy(start, end, Tr.begin()); 
+
+    
+    Trans.erase (Trans.begin(),Trans.begin()+100);
+
+    blokelis->T = Tr;
+
+    //here we hash transactions
+    std::string stringtohash = "";
+    for(int i = 0; i < 100; i++)
+    {
+        stringtohash += blokelis->T[i].trans_ID;
+    }                            //TODO: MERKEL ROOT HASH
+
+    blokelis->merkel_root_hash = hash_function(stringtohash);
+    
+
+    blokelis->prev_hash = "0";
+
+
+    blokelis->next = NULL;
+    }
+
+    else
+    {
+        Block *t = blokelis;
+        int n = 0;
+        while(t->next)
+        {
+            t = t->next;
+            n++;
+        }
+        t->next = new Block;
+        t = t->next;
+        Block *prev = blokelis;
+        int i = 0;
+        while(i < n)
+        {
+            prev = prev->next;
+            i++;
+        }
+
+
+        int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        t->timestamp = time;
+        t->version = "1st";
+        t->difficulty_target = "000";
+        t->nonce = 0;
+
+
+        auto start = Trans.begin(); 
+        auto end = Trans.begin() + 100; 
+    
+        std::vector<Transactions> Tr(100); 
+    
+        copy(start, end, Tr.begin()); 
+
+        
+        Trans.erase (Trans.begin(),Trans.begin()+100);
+
+        t->T = Tr;
+
+        //here we hash transactions
+        std::string stringtohash = "";
+        for(int i = 0; i < 100; i++)
+        {
+            stringtohash += t->T[i].trans_ID;
+        }                            //TODO: MERKEL ROOT HASH (Recursion maybe?)
+
+        t->merkel_root_hash = hash_function(stringtohash);
+
+
+        std::string str = prev->difficulty_target + prev->merkel_root_hash + prev->prev_hash + std::to_string(prev->timestamp) + prev->version;
+
+        do
+        {
+            prev->nonce++;
+            std::string stringtohash = str + std::to_string(prev->nonce);
+            t->prev_hash = hash_function(stringtohash);
+        }while(t->prev_hash.substr(0, 3) != "000");
+
+        std::cout << t->prev_hash << std::endl;
+        t->next = NULL;
+    }
+    
+    
+
+}
+
+
+
+void print(Block *root) {
+  Block *t = root;
+  while (t) {
+    std::cout << t->prev_hash << " ";
+    t = t->next;
+  }
+  std::cout << std::endl;
 }

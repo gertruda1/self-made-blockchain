@@ -7,7 +7,8 @@
 #include <ctime>
 #include <chrono>
 #include <random>
-#include<iterator> // for back_inserter
+#include <algorithm>
+#include <iterator> // for back_inserter
 
 class Users
 {
@@ -131,19 +132,16 @@ void generate_trans(std::vector<Transactions> &transaction)
     {
         int r = rnd1(gen);
         tmp.sender = user[r].publicKey;
-        if (user[r].CatCoin > 0)
+        
+        int r2;
+        do
         {
-            int r2;
-            do
-            {
-                r2 = rnd1(gen);
-                tmp.reciever = user[r2].publicKey;
-            } while(tmp.sender == tmp.reciever);
+            r2 = rnd1(gen);
+            tmp.reciever = user[r2].publicKey;
+        } while(tmp.sender == tmp.reciever);
             
-            std::uniform_int_distribution<unsigned> rnd2(1, user[r].CatCoin);
+            std::uniform_int_distribution<unsigned> rnd2(1, 1000000);
             tmp.amount = rnd2(gen);
-            user[r].CatCoin = user[r].CatCoin - tmp.amount;
-            user[r2].CatCoin = user[r2].CatCoin + tmp.amount;
 
             std::string str = "";
             str = tmp.sender + tmp.reciever + std::to_string(tmp.amount);
@@ -153,14 +151,13 @@ void generate_trans(std::vector<Transactions> &transaction)
             //std::cout << transaction[i].sender << " " << transaction[i].reciever << " " << transaction[i].amount << " " << transaction[i].trans_ID << "\n";
         }
 
-        else i--;
-    }
-
     std::cout << "Tranasakcijos sugeneruotos\n";
 }
 
-std::string merkle_root_hash(std::vector<std::string> h1)
+std::string merkle_root_hash(std::vector<std::string> v_string)
 {
+    std::vector<std::string> h1;
+     copy(v_string.begin(), v_string.end(), back_inserter(h1));
     while(h1.size() != 1)
     {
         std::vector<std::string> h2;
@@ -171,9 +168,7 @@ std::string merkle_root_hash(std::vector<std::string> h1)
         }
         for(int i = 0; i < h1.size() - 1; i += 2)
         {
-            std::string str = h1[i] + h1[i + 1];
-            std::string hash;
-            hash = hash_function(str);
+            std::string hash = hash_function(hash_function(h1[i]) + hash_function(h1[i + 1]));
             h2.push_back(hash);
         }
         h1.clear();
@@ -185,55 +180,114 @@ std::string merkle_root_hash(std::vector<std::string> h1)
     return h1.at(0);
 }
 
-
-void addblock(Block* &blokelis, std::vector<Transactions> &Trans)
+bool mark_to_delete(Transactions a)
 {
+    bool z;
+    if(a.trans_ID == "000") z = true;
+    return z;
+}
 
-    // std::string prev_hash;
-    //    int nonce;
-    if(!blokelis)
+void addblock(Block* &b)
+{
+    //Here we create new vector with 100 transactions in it
+    std::vector<Transactions> tmp;
+    copy(transaction.begin(), transaction.end(), back_inserter(tmp));
+
+    std::vector<Transactions> Tr;
+
+
+    for(int i = 0; i < 100; i++)
     {
-        blokelis = new Block;
+        std::uniform_int_distribution<unsigned> rnd(0, tmp.size() - 1);
+        int r = rnd(gen);
+        Tr.push_back(tmp[r]);
+        tmp.erase(tmp.begin() + r);
+        //std::cout << i << " " << Tr[i].amount << std::endl;
+    }
+    tmp.clear();
+    
+    //Here we are going to chech the balance
+    std::vector<Users> tmpu;
+    copy(user.begin(), user.end(), back_inserter(tmpu));
+    
+    for(int i = 0; i < Tr.size(); i++)
+    {
+        int a = -1, c = -1;
+        for(int j = 0; j < tmpu.size() - 1; j++)
+        {
+            //std::cout << Tr[i].reciever << " " << tmpu[j].publicKey << std::endl;
+            if(Tr[i].reciever == tmpu[j].publicKey) a = j;
+            if (Tr[i].sender == tmpu[j].publicKey) c = j;
+
+            if(a != -1 && c != -1)
+            {
+                if(Tr[i].amount > tmpu[c].CatCoin)
+                {
+                    int z = 0;
+                    while(Tr[i].trans_ID != transaction[z].trans_ID)
+                    {
+                        z++;
+                    }
+                    Tr[i].trans_ID = "000";
+                    transaction.erase(transaction.begin() + z);
+                    Tr[i].trans_ID = "0";
+                    break;
+                }
+                else
+                {
+                    tmpu[c].CatCoin -= Tr[i].amount;
+                    tmpu[a].CatCoin += Tr[i].amount;
+                }
+                
+            }
+            
+        }
+    }
+        std::remove_if(Tr.begin(), Tr.end(), mark_to_delete);
+        Tr.shrink_to_fit();
+        std::cout << .size() << std::endl;
+
+///////////////////////////////////////////////////////////////
+
+
+
+
+    if(!b)
+    {
+        b = new Block;
 
     int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    blokelis->timestamp = time;
-    blokelis->version = "1st";
-    blokelis->difficulty_target = "00";
-    blokelis->nonce = 0;
+    b->timestamp = time;
+    b->version = "1st";
+    b->difficulty_target = "00";
+    b->nonce = 0;
 
-    auto start = Trans.begin(); 
-    auto end = Trans.begin() + 100; 
   
-    std::vector<Transactions> Tr(100); 
-  
-    copy(start, end, Tr.begin()); 
-
     
-    Trans.erase (Trans.begin(),Trans.begin()+100);
 
-    blokelis->T = Tr;
+    b->T = Tr;
 
     //here we hash transactions
     std::vector<std::string> v_string;
-    for(int i = 0; i < 100; i++)
+    for(int i = 0; i < b->T.size() - 1; i++)
     {
-        v_string.push_back(hash_function(blokelis->T[i].trans_ID));
-    }                            //TODO: MERKEL ROOT HASH
+        v_string.push_back(b->T[i].trans_ID);
+    }                            
 
-    blokelis->merkel_root_hash = merkle_root_hash(v_string);
+    b->merkel_root_hash = merkle_root_hash(v_string);
     
 
-    blokelis->prev_hash = "0";
+    b->prev_hash = "0";
 
 
-    blokelis->next = NULL;
+    b->next = NULL;
 
-    std::cout << blokelis->prev_hash << std::endl;
+    std::cout << b->prev_hash << std::endl;
     }
 
     else
     {
-        Block *t = blokelis;
+        Block *t = b;
         int n = 0;
         while(t->next)
         {
@@ -242,7 +296,7 @@ void addblock(Block* &blokelis, std::vector<Transactions> &Trans)
         }
         t->next = new Block;
         t = t->next;
-        Block *prev = blokelis;
+        Block *prev = b;
         int i = 0;
         while(i < n)
         {
@@ -258,24 +312,14 @@ void addblock(Block* &blokelis, std::vector<Transactions> &Trans)
         t->nonce = 0;
 
 
-        auto start = Trans.begin(); 
-        auto end = Trans.begin() + 100; 
-    
-        std::vector<Transactions> Tr(100); 
-    
-        copy(start, end, Tr.begin()); 
-
-        
-        Trans.erase (Trans.begin(),Trans.begin()+100);
-
         t->T = Tr;
 
         //here we hash transactions
         std::vector<std::string> v_string;
-        for(int i = 0; i < 100; i++)
+        for(int i = 0; i < t->T.size() - 1; i++)
         {
-            v_string.push_back(hash_function(t->T[i].trans_ID));
-        }                            //TODO: MERKEL ROOT HASH
+            v_string.push_back(t->T[i].trans_ID);
+        }                            
 
         t->merkel_root_hash = merkle_root_hash(v_string);
 

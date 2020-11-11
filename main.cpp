@@ -11,9 +11,8 @@ int main()
     int i = 1;
     while(!transaction.empty()){
         std::cout << i << " ";
-        addblock(jo, transaction);
+        addblock(jo);
         i++;
     }
-
     return 0;
 }

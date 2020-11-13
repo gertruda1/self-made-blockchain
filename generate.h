@@ -8,7 +8,7 @@
 #include <chrono>
 #include <random>
 #include <algorithm>
-#include <iterator> // for back_inserter
+#include <iterator>
 
 class Users
 {
@@ -35,6 +35,7 @@ class Block
 {
     public:
         std::string prev_hash;
+        std::string hash;
         int64_t timestamp;
         std::string version;
         std::string merkel_root_hash;
@@ -123,7 +124,7 @@ std::string hash_function(std::string str)
 }
 
 
-void generate_trans(std::vector<Transactions> &transaction)
+void generate_trans()
 {
     std::uniform_int_distribution<unsigned> rnd1(0, 999);
     Transactions tmp;
@@ -140,7 +141,7 @@ void generate_trans(std::vector<Transactions> &transaction)
             tmp.reciever = user[r2].publicKey;
         } while(tmp.sender == tmp.reciever);
             
-            std::uniform_int_distribution<unsigned> rnd2(1, 1000000);
+            std::uniform_int_distribution<unsigned> rnd2(1, 10);
             tmp.amount = rnd2(gen);
 
             std::string str = "";
@@ -152,6 +153,19 @@ void generate_trans(std::vector<Transactions> &transaction)
         }
 
     std::cout << "Tranasakcijos sugeneruotos\n";
+}
+
+void validate_trans()
+{
+    for(int i = 0; i < transaction.size(); i++)
+    {
+        std::string str = "";
+        str = transaction[i].sender + transaction[i].reciever + std::to_string(transaction[i].amount);
+        if(transaction[i].trans_ID != hash_function(str))
+        {
+            transaction.erase(transaction.begin() + i);
+        }
+    }
 }
 
 std::string merkle_root_hash(std::vector<std::string> v_string)
@@ -187,13 +201,39 @@ bool mark_to_delete(Transactions a)
     return z;
 }
 
-void addblock(Block* &b)
+Block* powHash(std::vector<Block*> &b, int j)
 {
+    int a = -1;
+    for(int i = 0; i < 5; i++)
+    {
+        std::string str = b[i]->difficulty_target + b[i]->merkel_root_hash + b[i]->prev_hash + std::to_string(b[i]->timestamp) + b[i]->version;
+        do
+        {
+            b[i]->nonce++;
+            std::string stringtohash = str + std::to_string(b[i]->nonce);
+            b[i]->hash = hash_function(stringtohash);
+        } while (b[i]->nonce < j && b[i]->hash.substr(0, 2) != "00");
+
+        if(b[i]->hash.substr(0,2) == "00")
+        {
+            a = i; 
+            i = 5;
+        }
+    }
+
+    if(a != -1)
+    {
+        return b.at(a);
+    }
+    else return powHash(b, j + 100000);
+}
+
+std::vector<Transactions> prepare_transactions()
+{
+    std::vector<Transactions> Tr;
     //Here we create new vector with 100 transactions in it
     std::vector<Transactions> tmp;
     copy(transaction.begin(), transaction.end(), back_inserter(tmp));
-
-    std::vector<Transactions> Tr;
 
 
     for(int i = 0; i < 100; i++)
@@ -202,18 +242,18 @@ void addblock(Block* &b)
         int r = rnd(gen);
         Tr.push_back(tmp[r]);
         tmp.erase(tmp.begin() + r);
+        
         //std::cout << i << " " << Tr[i].amount << std::endl;
     }
     tmp.clear();
     
-    //Here we are going to chech the balance
+    //Here we are going to check the balance
     std::vector<Users> tmpu;
     copy(user.begin(), user.end(), back_inserter(tmpu));
-    
     for(int i = 0; i < Tr.size(); i++)
     {
         int a = -1, c = -1;
-        for(int j = 0; j < tmpu.size() - 1; j++)
+        for(int j = 0; j < tmpu.size(); j++)
         {
             //std::cout << Tr[i].reciever << " " << tmpu[j].publicKey << std::endl;
             if(Tr[i].reciever == tmpu[j].publicKey) a = j;
@@ -221,123 +261,151 @@ void addblock(Block* &b)
 
             if(a != -1 && c != -1)
             {
+                
                 if(Tr[i].amount > tmpu[c].CatCoin)
                 {
+                    
                     int z = 0;
                     while(Tr[i].trans_ID != transaction[z].trans_ID)
                     {
                         z++;
                     }
                     Tr[i].trans_ID = "000";
+                    
                     transaction.erase(transaction.begin() + z);
-                    Tr[i].trans_ID = "0";
-                    break;
+                    
                 }
                 else
                 {
                     tmpu[c].CatCoin -= Tr[i].amount;
                     tmpu[a].CatCoin += Tr[i].amount;
                 }
-                
+                j = tmpu.size();
             }
             
         }
+        
     }
-        std::remove_if(Tr.begin(), Tr.end(), mark_to_delete);
-        Tr.shrink_to_fit();
-        std::cout << .size() << std::endl;
+    
+    Tr.erase(std::remove_if(Tr.begin(), Tr.end(), mark_to_delete), Tr.end());
 
-///////////////////////////////////////////////////////////////
+    return Tr;
+}
 
 
+void generate_block(Block* &b, std::string prevhash, std::vector<Transactions> Tr) //sugeneruosim bloko pagrinda
+{
+    
+
+        int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        b->timestamp = time;
+        b->version = "1st";
+        b->difficulty_target = "00";
+        b->nonce = 0;
+        b->T = Tr;
+    std::cout << "as cia2\n";
+        //here we hash transactions
+        std::vector<std::string> v_string;
+        for(int i = 0; i < b->T.size() - 1; i++)
+        {
+            v_string.push_back(b->T[i].trans_ID);
+        }                            
+
+        b->merkel_root_hash = merkle_root_hash(v_string);
+            
+        b->prev_hash = prevhash;
+
+}
+
+void generate_block(Block* &b, std::vector<Transactions> Tr) //sugeneruosim bloko pagrinda
+{
+        int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        b->timestamp = time;
+        b->version = "1st";
+        b->difficulty_target = "00";
+        b->nonce = 0;
+        b->T = Tr;
+        //here we hash transactions
+        std::cout << "as cia1\n";
+        std::vector<std::string> v_string;
+        for(int i = 0; i < b->T.size() - 1; i++)
+        {
+            v_string.push_back(b->T[i].trans_ID);
+        }                            
+
+        b->merkel_root_hash = merkle_root_hash(v_string);
+            
+
+        b->prev_hash = "0";
+}
+
+Block* prepare_block(bool is_first, Block* b, std::vector<Transactions> &Tr) //patikrinsim su pow ir grazinsim ta bloka, kuri jau desim i blockchaina
+{
+    std::vector<Block*> block;
+    
+    for(int i = 0; i < 5; i++)
+    {
+        
+        Tr = prepare_transactions();
+        if (Tr.size() > 0) // tada galim kurti nauja bloka, jei yra transakciju
+        {
+            Block* tmp = new Block;
+            block.push_back(tmp);
+            if(is_first == true)
+            {
+                generate_block(block.at(i), Tr);
+            }
+            else
+            generate_block(block.at(i), b->hash, Tr);
+        }
+    }
+
+    return powHash(block, 100000);
+
+}
+
+void addblock(Block* &b)
+{
+
+    std::vector<Transactions> Tr;
 
 
     if(!b)
     {
+        bool is_first = true;
         b = new Block;
+        b = prepare_block(is_first, b, Tr);
+        std::cout << b->hash << std::endl;
+        b->next = NULL;
 
-    int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    b->timestamp = time;
-    b->version = "1st";
-    b->difficulty_target = "00";
-    b->nonce = 0;
-
-  
-    
-
-    b->T = Tr;
-
-    //here we hash transactions
-    std::vector<std::string> v_string;
-    for(int i = 0; i < b->T.size() - 1; i++)
-    {
-        v_string.push_back(b->T[i].trans_ID);
-    }                            
-
-    b->merkel_root_hash = merkle_root_hash(v_string);
-    
-
-    b->prev_hash = "0";
-
-
-    b->next = NULL;
-
-    std::cout << b->prev_hash << std::endl;
+        
     }
 
     else
     {
-        Block *t = b;
-        int n = 0;
-        while(t->next)
-        {
+        bool is_first = false;
+            Block *t = b;
+            Block *prev = b;
+            while(t->next)
+            {
+                t = t->next;
+                prev = prev->next;
+            }
+            t->next = new Block;
             t = t->next;
-            n++;
-        }
-        t->next = new Block;
-        t = t->next;
-        Block *prev = b;
-        int i = 0;
-        while(i < n)
-        {
-            prev = prev->next;
-            i++;
-        }
-
-
-        int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        t->timestamp = time;
-        t->version = "1st";
-        t->difficulty_target = "00";
-        t->nonce = 0;
-
-
-        t->T = Tr;
-
-        //here we hash transactions
-        std::vector<std::string> v_string;
-        for(int i = 0; i < t->T.size() - 1; i++)
-        {
-            v_string.push_back(t->T[i].trans_ID);
-        }                            
-
-        t->merkel_root_hash = merkle_root_hash(v_string);
-
-        std::string str = prev->difficulty_target + prev->merkel_root_hash + prev->prev_hash + std::to_string(prev->timestamp) + prev->version;
-
-        do
-        {
-            prev->nonce++;
-            std::string stringtohash = str + std::to_string(prev->nonce);
-            t->prev_hash = hash_function(stringtohash);
-        }while(t->prev_hash.substr(0, 2) != "00");
-
-        std::cout << t->prev_hash << std::endl;
-        t->next = NULL;
+            
+            t = prepare_block(is_first, prev, Tr);
+            std::cout << t->hash << std::endl;
+            t->next = NULL;
     }
-    
-    
+        
+        
+        
+        //Execute transactions
 
+        
+ 
+    
 }
 
 

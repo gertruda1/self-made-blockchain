@@ -32,7 +32,7 @@ Self-made blockchain, written in c++
   * Randomly selects one of the five generated potential block candidates and mines it until if fulfills Proof of Work quality within 100000 tries.
     * If block is mined - it is added to the blockchain, if not the process is repeated with another randomly chosen potential block.
   
-  * When block is added, used transactions are executed - deleted from transaction pool.
+  * When block is added, used transactions are executed and deleted from transaction pool.
   
  Generated block contains:
   

@@ -1,6 +1,6 @@
 # self-made-blockchain
 
-Self-made blockchain, written in c++. In this version I have used Merkle tree hash function create_merkle() which is based on [libbitcoin library](https://github.com/libbitcoin/libbitcoin-system)
+Self-made blockchain, written in c++. In this version I have used Merkle tree function create_merkle() which is based on [libbitcoin library](https://github.com/libbitcoin/libbitcoin-system)
 ## Installation instructions
 
  * Download the program code.

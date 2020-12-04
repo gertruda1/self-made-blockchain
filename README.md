@@ -6,10 +6,6 @@ Self-made blockchain, written in c++. In this version I have used Merkle tree fu
  * Download the program code.
  * Download [libbitcoin library](https://github.com/libbitcoin/libbitcoin-system).
  * Install c++ compiler
- 
- `sudo apt-get update`
- 
- `sudo apt-get install build-essential manpages-dev`
  * Compile program using command line
  
  `g++ -std=c++11 -o exe block.cpp $(pkg-config --cflags --libs libbitcoin)`
